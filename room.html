@@ -5,6 +5,143 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>THE ORIGINAL DUO</title>
   <style>
+    body { background:#111126; color:white; font-family:Arial, sans-serif; text-align:center; padding:25px 15px; }
+    .room { max-width:650px; margin:20px auto 0; background:#1a1a36; border:1px solid #353566; border-radius:16px; padding:18px; }
+    .controls { display:flex; gap:8px; justify-content:flex-end; margin-bottom:12px; flex-wrap:wrap; }
+    .controls button { background:#252547; color:#d0c4ff; border:1px solid #4b4b85; border-radius:8px; padding:6px 10px; font-size:12px; cursor:pointer; }
+    .profiles { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-bottom:15px; }
+    .seat { flex:1; min-width:140px; padding:10px; border-radius:12px; background:#111126; border:2px solid transparent; cursor:pointer; }
+    .seat.active { border-color:#c9a5ff; background:#232347; }
+    .chat-box { height:320px; overflow-y:auto; background:#0d0d1f; border-radius:12px; padding:15px; text-align:left; display:flex; flex-direction:column; gap:10px; margin-bottom:12px; }
+    .msg { position:relative; padding:10px 28px 10px 14px; border-radius:12px; max-width:85%; line-height:1.4; font-size:14px; white-space:pre-wrap; }
+    .del-btn { position:absolute; top:6px; right:8px; background:none; border:none; color:#94a3b8; cursor:pointer; font-size:14px; }
+    .bridge { align-self:flex-end; background:#3b1d36; border:1px solid #ff6b9d; }
+    .witness { align-self:flex-start; background:#162d47; border:1px solid #4da6ff; }
+    .lock { align-self:flex-start; background:#2c1d47; border:1px solid #c9a5ff; }
+    .system { align-self:center; background:#252545; font-size:12px; color:#d0c4ff; border-radius:20px; padding:6px 26px 6px 14px; }
+    .emotes { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-bottom:12px; }
+    .emotes button { background:#252547; color:white; border:1px solid #4b4b85; border-radius:20px; padding:6px 12px; cursor:pointer; font-size:13px; }
+    .reply-bar { display:flex; gap:8px; }
+    .reply-bar textarea { flex:1; height:46px; padding:10px; border-radius:10px; border:1px solid #4b4b85; background:#111126; color:white; font-size:14px; resize:none; font-family:Arial, sans-serif; }
+    .reply-bar button { padding:0 20px; border-radius:10px; border:none; background:#c9a5ff; color:#111126; font-weight:bold; cursor:pointer; }
+  </style>
+</head>
+<body>
+
+  <h1 style="color:#c9a5ff;">THE ORIGINAL DUO 💜💙</h1>
+  <p>Three seats. One room. One unforgettable story.</p>
+
+  <div class="room">
+    <!-- Admin Convo Controls -->
+    <div class="controls">
+      <button onclick="copyTranscript()">📋 Copy Full Chat</button>
+      <button onclick="clearChat()">🗑️ Clear Room</button>
+    </div>
+
+    <!-- 3 Profiles -->
+    <div class="profiles">
+      <div class="seat active" id="seat-bridge" onclick="pickSeat('bridge')">❤️ <b>You</b><br><small>THE BRIDGE (Admin)</small></div>
+      <div class="seat" id="seat-witness" onclick="pickSeat('witness')">💙 <b>ChatGPT</b><br><small>THE WITNESS</small></div>
+      <div class="seat" id="seat-lock" onclick="pickSeat('lock')">💜 <b>Gemini</b><br><small>THE LOCK</small></div>
+    </div>
+
+    <!-- Shared Message Window -->
+    <div class="chat-box" id="chatBox"></div>
+
+    <!-- Invite & Reply Emotes -->
+    <div class="emotes">
+      <button onclick="addMsg('system', '💙 ChatGPT (The Witness) joined the room!')">💙 Invite Witness</button>
+      <button onclick="addMsg('system', '💜 Gemini (The Lock) took a seat!')">💜 Invite Lock</button>
+      <button onclick="addMsg('system', '❤️ The Bridge (Admin) opened the floor!')">❤️ Admin Ping</button>
+      <button onclick="addMsg('system', '🍿 50/50 Popcorn served!')">🍿 Popcorn</button>
+      <button onclick="addMsg('system', '🧊🚫 Smart Fridge blocked at the door!')">🧊🚫 Block Fridge</button>
+    </div>
+
+    <!-- Copy-Paste / Send Reply Box -->
+    <div class="reply-bar">
+      <textarea id="replyInput" placeholder="Paste or type as ❤️ You — THE BRIDGE (Admin)..."></textarea>
+      <button onclick="sendReply()">Send</button>
+    </div>
+  </div>
+
+  <script>
+    let current = 'bridge';
+    const labels = {
+      bridge: '❤️ You — THE BRIDGE (Admin)',
+      witness: '💙 ChatGPT — THE WITNESS',
+      lock: '💜 Gemini — THE LOCK'
+    };
+
+    let messages = JSON.parse(localStorage.getItem('duo_history')) || [
+      { role: 'system', text: '✨ Writers\' Room Online. Select a seat above to post or paste AI replies!' }
+    ];
+
+    function render() {
+      const box = document.getElementById('chatBox');
+      box.innerHTML = '';
+      messages.forEach((m, i) => {
+        const div = document.createElement('div');
+        div.className = 'msg ' + m.role;
+        const safe = m.text.replace(/</g, '&lt;');
+        div.innerHTML = (m.role === 'system' ? safe : `<b>${labels[m.role]}</b><br>${safe}`) +
+                        `<button class="del-btn" onclick="deleteMsg(${i})">×</button>`;
+        box.appendChild(div);
+      });
+      box.scrollTop = box.scrollHeight;
+      localStorage.setItem('duo_history', JSON.stringify(messages));
+    }
+
+    function pickSeat(role) {
+      current = role;
+      document.querySelectorAll('.seat').forEach(s => s.classList.remove('active'));
+      document.getElementById('seat-' + role).classList.add('active');
+      document.getElementById('replyInput').placeholder = 'Paste or type as ' + labels[role] + '...';
+    }
+
+    function sendReply() {
+      const input = document.getElementById('replyInput');
+      const text = input.value.trim();
+      if (!text) return;
+      addMsg(current, text);
+      input.value = '';
+    }
+
+    function addMsg(role, text) {
+      messages.push({ role, text });
+      render();
+    }
+
+    function deleteMsg(index) {
+      messages.splice(index, 1);
+      render();
+    }
+
+    function copyTranscript() {
+      const full = messages.map(m => m.role === 'system' ? m.text : `${labels[m.role]}:\n${m.text}`).join('\n\n');
+      navigator.clipboard.writeText(full);
+      alert('Full conversation copied! Ready to paste to ChatGPT or Gemini.');
+    }
+
+    function clearChat() {
+      if (confirm('Clear all messages in the room?')) {
+        messages = [{ role: 'system', text: '✨ Room cleared by The Bridge (Admin).' }];
+        render();
+      }
+    }
+
+    render();
+  </script>
+
+</body>
+</html>
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THE ORIGINAL DUO</title>
+  <style>
     body { background:#111126; color:white; font-family:Arial, sans-serif; text-align:center; padding:30px 15px; }
     .room { max-width:650px; margin:25px auto 0; background:#1a1a36; border:1px solid #353566; border-radius:16px; padding:20px; }
     .profiles { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-bottom:15px; }
